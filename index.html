@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
 <title>INDAR · Ma séance</title>
 <style>
-  :root { --txt: #1c1c1a; --mut: #6b6a64; --bord: #dcdad2; --doux: #f4f3ee; --acc: #141413; --err: #b3261e; }
+  :root { --txt: #111110; --mut: #4d4c47; --bord: #dcdad2; --doux: #f4f3ee; --acc: #141413; --err: #b3261e; }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: var(--txt); background: #fff; }
   main { max-width: 520px; margin: 0 auto; padding: 18px 16px 40px; }
@@ -45,6 +45,9 @@
   .legende { display: flex; gap: 18px; font-size: 13px; color: var(--mut); margin-top: 4px; flex-wrap: wrap; }
   .legende span { display: inline-flex; align-items: center; gap: 6px; }
   [hidden] { display: none !important; }
+  /* Logo INDAR Capacity en filigrane, par-dessus la page sans bloquer les touches. */
+  body::after { content: ''; position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 10; pointer-events: none;
+    background: url('logo-fond.svg') no-repeat center 55%; background-size: min(86vw, 440px) auto; opacity: .06; }
 </style>
 </head>
 <body>
@@ -114,7 +117,7 @@
 /* Graphiques SVG partagés : ciseaux, barres de charge, courbe de forme. */
 var COUL_CHARGE = '#2a78d6';
 var COUL_FORME = '#eb6834';
-var COUL_AXE = '#8a887f';
+var COUL_AXE = '#5f5e58';
 var COUL_GRILLE = '#e6e4dc';
 
 function g_estVal(v) { return v !== null && v !== undefined && !isNaN(v); }
