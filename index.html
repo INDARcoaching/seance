@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="apple-mobile-web-app-title" content="INDAR">
+<meta name="theme-color" content="#141413">
+<title>INDAR · Ma séance</title>
+<style>
+  :root { --txt: #1c1c1a; --mut: #6b6a64; --bord: #dcdad2; --doux: #f4f3ee; --acc: #141413; --err: #b3261e; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: var(--txt); background: #fff; }
+  main { max-width: 520px; margin: 0 auto; padding: 18px 16px 40px; }
+  .marque { font-size: 12px; letter-spacing: .14em; color: var(--mut); font-weight: 700; }
+  h1 { font-size: 22px; margin: 2px 0 0; }
+  h2 { font-size: 17px; margin: 0 0 12px; }
+  .sous { color: var(--mut); font-size: 14px; margin: 4px 0 14px; }
+  .bloc { margin: 18px 0; }
+  .etiquette { font-size: 14px; font-weight: 700; margin-bottom: 8px; display: flex; justify-content: space-between; gap: 8px; }
+  .valeur { font-weight: 500; color: var(--mut); text-align: right; }
+  .pave { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+  .pave.cinq { grid-template-columns: repeat(5, 1fr); }
+  button { font: inherit; color: inherit; }
+  .pave button, .chips button, .noms button { border: 1px solid var(--bord); background: var(--doux); border-radius: 10px; min-height: 46px; font-size: 17px; font-weight: 700; cursor: pointer; }
+  .pave button.on, .chips button.on, .noms button.on { background: var(--acc); color: #fff; border-color: var(--acc); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chips button { padding: 0 12px; font-size: 15px; flex: 1 0 auto; }
+  .noms { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .noms button { font-size: 16px; padding: 8px; }
+  input[type=text], input[type=number], input[type=tel] { width: 100%; font: inherit; font-size: 16px; padding: 12px; border: 1px solid var(--bord); border-radius: 10px; margin-top: 8px; background: #fff; }
+  .bascule { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 700; }
+  .bascule input { width: 22px; height: 22px; margin: 0; }
+  .principal { width: 100%; min-height: 54px; border: 0; border-radius: 12px; background: var(--acc); color: #fff; font-size: 18px; font-weight: 700; margin-top: 10px; cursor: pointer; }
+  .principal:disabled { background: #c9c7bf; cursor: default; }
+  .secondaire { width: 100%; min-height: 46px; border: 1px solid var(--bord); border-radius: 12px; background: #fff; font-size: 15px; margin-top: 18px; cursor: pointer; }
+  .lien { border: 0; background: none; color: var(--mut); text-decoration: underline; font-size: 14px; padding: 4px; cursor: pointer; }
+  .qui { display: flex; align-items: center; justify-content: space-between; background: var(--doux); border-radius: 10px; padding: 10px 12px; font-size: 15px; font-weight: 700; }
+  .erreur { color: var(--err); font-size: 14px; }
+  .carte { background: var(--doux); border-radius: 12px; padding: 14px; margin: 12px 0; }
+  .chiffre { font-size: 28px; font-weight: 700; }
+  .note { font-size: 13px; color: var(--mut); line-height: 1.5; }
+  .legende { display: flex; gap: 18px; font-size: 13px; color: var(--mut); margin-top: 4px; flex-wrap: wrap; }
+  .legende span { display: inline-flex; align-items: center; gap: 6px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <div class="marque">INDAR</div>
+  <h1 id="titre">Ma séance</h1>
+  <p class="sous" id="sous"></p>
+
+  <section id="vue-chargement"><p class="note">Chargement…</p></section>
+
+  <section id="vue-erreur" hidden><p id="msg-erreur" class="carte"></p></section>
+
+  <section id="vue-qui" hidden>
+    <h2>Qui es-tu ?</h2>
+    <div class="noms" id="noms"></div>
+  </section>
+
+  <section id="vue-saisie" hidden>
+    <div class="qui"><span id="bonjour"></span><button type="button" class="lien" id="changer" hidden>Pas toi ?</button></div>
+    <div class="bloc">
+      <div class="etiquette">Séance</div>
+      <div class="chips" id="jour"><button type="button" data-v="0" class="on">Aujourd'hui</button><button type="button" data-v="1">Hier</button></div>
+    </div>
+    <div class="bloc">
+      <div class="etiquette"><span>Difficulté de la séance (RPE)</span><span class="valeur" id="rpe-txt"></span></div>
+      <div class="pave" id="rpe"></div>
+    </div>
+    <div class="bloc">
+      <div class="etiquette"><span>Ta forme du jour</span><span class="valeur" id="forme-txt"></span></div>
+      <div class="pave cinq" id="forme"></div>
+    </div>
+    <div class="bloc">
+      <div class="etiquette">Durée de la séance</div>
+      <div class="chips" id="duree"></div>
+      <input type="number" id="duree-autre" inputmode="numeric" min="5" max="600" placeholder="Durée en minutes" hidden>
+    </div>
+    <div class="bloc">
+      <label class="bascule"><input type="checkbox" id="pr-on"> J'ai battu un record</label>
+      <div id="pr" hidden>
+        <input type="text" id="pr-mouv" maxlength="80" placeholder="Mouvement (ex. Back squat, 5 km, Fran)">
+        <input type="text" id="pr-perf" maxlength="80" placeholder="Perf (ex. 140 kg, 21:30)">
+      </div>
+    </div>
+    <button type="button" class="principal" id="envoyer" disabled>Envoyer</button>
+    <p class="erreur" id="err-saisie" hidden></p>
+  </section>
+
+  <section id="vue-merci" hidden>
+    <h2 id="merci-titre"></h2>
+    <div class="carte">
+      <div class="note">Charge de cette séance</div>
+      <div class="chiffre" id="merci-ua"></div>
+      <div class="note" id="merci-detail"></div>
+    </div>
+    <div id="bloc-code" hidden>
+      <p class="note">Pour voir tes courbes, entre ton code à 4 chiffres.</p>
+      <input type="tel" id="code" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="Code">
+      <button type="button" class="principal" id="code-ok">Voir mes courbes</button>
+      <p class="erreur" id="err-code" hidden></p>
+    </div>
+    <div id="bloc-courbes" hidden></div>
+    <button type="button" class="secondaire" id="nouvelle">Saisir une autre séance</button>
+  </section>
+</main>
+
+<script>
+/* Graphiques SVG partagés : ciseaux, barres de charge, courbe de forme. */
+var COUL_CHARGE = '#2a78d6';
+var COUL_FORME = '#eb6834';
+var COUL_AXE = '#8a887f';
+var COUL_GRILLE = '#e6e4dc';
+
+function g_estVal(v) { return v !== null && v !== undefined && !isNaN(v); }
+
+function g_axeX(cols, X, y) {
+  var s = '';
+  cols.forEach(function (c, i) {
+    s += '<text x="' + X(i).toFixed(1) + '" y="' + y + '" text-anchor="middle" font-size="10" fill="' + COUL_AXE + '">' + g_esc(c) + '</text>';
+  });
+  return s;
+}
+
+function g_esc(t) {
+  return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; });
+}
+
+function g_trace(serie, X, Y, coul, tirets, carre, unite) {
+  var d = '', ouvert = false, out = '';
+  serie.forEach(function (v, i) {
+    if (!g_estVal(v)) { ouvert = false; return; }
+    d += (ouvert ? ' L ' : ' M ') + X(i).toFixed(1) + ' ' + Y(v).toFixed(1);
+    ouvert = true;
+  });
+  if (d) {
+    out += '<path d="' + d + '" fill="none" stroke="' + coul + '" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"' +
+      (tirets ? ' stroke-dasharray="5 4"' : '') + '/>';
+  }
+  serie.forEach(function (v, i) {
+    if (!g_estVal(v)) return;
+    var x = X(i), y = Y(v), titre = '<title>' + g_esc(String(v).replace('.', ',') + (unite || '')) + '</title>';
+    out += carre
+      ? '<rect x="' + (x - 3.5).toFixed(1) + '" y="' + (y - 3.5).toFixed(1) + '" width="7" height="7" fill="' + coul + '" stroke="#fff" stroke-width="1.5">' + titre + '</rect>'
+      : '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="3.8" fill="' + coul + '" stroke="#fff" stroke-width="1.5">' + titre + '</circle>';
+  });
+  return out;
+}
+
+/** Ciseaux : charge et forme en % de l'habitude (100 = normale). zones = null pour la vue athlète. */
+function svgCiseaux(cols, iC, iF, zones) {
+  var W = 340, H = 205, g = 34, d = 8, h = 12, b = 178;
+  var vals = iC.concat(iF).filter(g_estVal);
+  if (!vals.length) vals = [100];
+  var mn = Math.min(60, Math.floor((Math.min.apply(null, vals) - 5) / 20) * 20);
+  var mx = Math.max(140, Math.ceil((Math.max.apply(null, vals) + 5) / 20) * 20);
+  var n = cols.length, pas = (W - g - d) / n;
+  var X = function (i) { return g + pas * (i + 0.5); };
+  var Y = function (v) { return b - (v - mn) * (b - h) / (mx - mn); };
+  var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" role="img" aria-label="Charge et forme en pourcentage de l\'habitude">';
+  if (zones) {
+    zones.forEach(function (z, i) {
+      var fond = z === 'a' ? 'rgba(208,59,59,0.16)' : (z === 'c' ? 'rgba(250,178,25,0.24)' : null);
+      if (fond) s += '<rect x="' + (g + pas * i).toFixed(1) + '" y="' + h + '" width="' + pas.toFixed(1) + '" height="' + (b - h) + '" fill="' + fond + '"/>';
+    });
+  }
+  var pasT = (mx - mn) > 160 ? 40 : 20, ticks = [];
+  for (var t0 = 100; t0 >= mn; t0 -= pasT) ticks.unshift(t0);
+  for (var t1 = 100 + pasT; t1 <= mx; t1 += pasT) ticks.push(t1);
+  ticks.forEach(function (t) {
+    var y = Y(t).toFixed(1);
+    s += '<line x1="' + g + '" x2="' + (W - d) + '" y1="' + y + '" y2="' + y + '" stroke="' + (t === 100 ? '#9a988f' : COUL_GRILLE) + '" stroke-width="' + (t === 100 ? 1.3 : 1) + '"/>';
+    s += '<text x="' + (g - 5) + '" y="' + (Y(t) + 3.5).toFixed(1) + '" text-anchor="end" font-size="10" fill="' + COUL_AXE + '">' + t + '</text>';
+  });
+  s += g_axeX(cols, X, b + 16);
+  s += g_trace(iC, X, Y, COUL_CHARGE, false, false, ' %') + g_trace(iF, X, Y, COUL_FORME, true, true, ' %');
+  return s + '</svg>';
+}
+
+function g_plafond(v) {
+  if (!(v > 0)) return 1;
+  var p = Math.pow(10, Math.floor(Math.log(v) / Math.LN10)), m = v / p;
+  return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 ? 2.5 : m <= 5 ? 5 : 10) * p;
+}
+
+/** Barres de charge hebdomadaire (UA). */
+function svgBarres(cols, vals) {
+  var W = 340, H = 195, g = 42, d = 8, h = 12, b = 168;
+  var max = g_plafond(Math.max.apply(null, vals.filter(g_estVal).concat([100])));
+  var n = cols.length, pas = (W - g - d) / n, larg = Math.min(22, pas * 0.6);
+  var X = function (i) { return g + pas * (i + 0.5); };
+  var Y = function (v) { return b - v * (b - h) / max; };
+  var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" role="img" aria-label="Charge par semaine en UA">';
+  for (var k = 0; k <= 4; k++) {
+    var t = max * k / 4, y = Y(t).toFixed(1);
+    s += '<line x1="' + g + '" x2="' + (W - d) + '" y1="' + y + '" y2="' + y + '" stroke="' + (k === 0 ? '#c3c2b7' : COUL_GRILLE) + '"/>';
+    s += '<text x="' + (g - 5) + '" y="' + (Y(t) + 3.5).toFixed(1) + '" text-anchor="end" font-size="10" fill="' + COUL_AXE + '">' + Math.round(t).toLocaleString('fr-FR') + '</text>';
+  }
+  vals.forEach(function (v, i) {
+    if (!(v > 0)) return;
+    var x = X(i) - larg / 2, y = Y(v), haut = b - y;
+    s += '<path d="M ' + x.toFixed(1) + ' ' + b + ' V ' + (y + Math.min(4, haut)).toFixed(1) +
+      ' Q ' + x.toFixed(1) + ' ' + y.toFixed(1) + ' ' + (x + Math.min(4, larg / 2)).toFixed(1) + ' ' + y.toFixed(1) +
+      ' H ' + (x + larg - Math.min(4, larg / 2)).toFixed(1) +
+      ' Q ' + (x + larg).toFixed(1) + ' ' + y.toFixed(1) + ' ' + (x + larg).toFixed(1) + ' ' + (y + Math.min(4, haut)).toFixed(1) +
+      ' V ' + b + ' Z" fill="' + (i === n - 1 ? COUL_CHARGE : '#85b7eb') + '"><title>' + Math.round(v).toLocaleString('fr-FR') + ' UA</title></path>';
+  });
+  s += g_axeX(cols, X, b + 16);
+  return s + '</svg>';
+}
+
+/** Courbe de forme moyenne (échelle 1 à max). */
+function svgForme(cols, vals, maxForme) {
+  var W = 340, H = 195, g = 30, d = 8, h = 12, b = 168, mn = 1, mx = maxForme || 10;
+  var n = cols.length, pas = (W - g - d) / n;
+  var X = function (i) { return g + pas * (i + 0.5); };
+  var Y = function (v) { return b - (v - mn) * (b - h) / (mx - mn); };
+  var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" role="img" aria-label="Forme moyenne par semaine">';
+  var pasT = mx > 6 ? 3 : 1;
+  for (var t = mn; t <= mx; t += pasT) {
+    var y = Y(t).toFixed(1);
+    s += '<line x1="' + g + '" x2="' + (W - d) + '" y1="' + y + '" y2="' + y + '" stroke="' + COUL_GRILLE + '"/>';
+    s += '<text x="' + (g - 5) + '" y="' + (Y(t) + 3.5).toFixed(1) + '" text-anchor="end" font-size="10" fill="' + COUL_AXE + '">' + t + '</text>';
+  }
+  s += g_axeX(cols, X, b + 16);
+  s += g_trace(vals, X, Y, COUL_FORME, true, true, ' / ' + mx);
+  return s + '</svg>';
+}
+
+function legendeCiseaux() {
+  return '<div class="legende">' +
+    '<span><svg width="24" height="10" aria-hidden="true"><line x1="0" y1="5" x2="24" y2="5" stroke="' + COUL_CHARGE + '" stroke-width="2.5"/></svg>Charge</span>' +
+    '<span><svg width="24" height="10" aria-hidden="true"><line x1="0" y1="5" x2="24" y2="5" stroke="' + COUL_FORME + '" stroke-width="2.5" stroke-dasharray="5 3"/></svg>Forme</span>' +
+    '</div>';
+}
+</script>
+<script>
+var API = 'https://script.google.com/macros/s/AKfycbx_RjL-8dwZ4HkxYiWy4CuRFOh5Ka4LmPkvyZREVWr64TSy59K55rwJNBLQYUMGrdzZ/exec';
+var CTX = null;
+
+/* Appel de l'API du classeur : POST en texte brut (pas de pré-requête), sans cookies Google. */
+function api(charge) {
+  return fetch(API, { method: 'POST', body: JSON.stringify(charge), redirect: 'follow', credentials: 'omit' })
+    .then(function (r) { if (!r.ok) throw new Error('Service indisponible (' + r.status + '). Réessaie dans un instant.'); return r.json(); })
+    .catch(function (e) { if (e instanceof TypeError) throw new Error('Pas de connexion. Vérifie ton réseau et réessaie.'); throw e; })
+    .then(function (d) { if (d && d.erreur) throw new Error(d.erreur); return d; });
+}
+var RPE_TXT = ['Repos', 'Très, très facile', 'Facile', 'Modéré', 'Un peu difficile', 'Difficile', 'Difficile +',
+  'Très difficile', 'Très difficile +', 'Quasi maximal', 'Maximal'];
+var etat = { id: null, prenom: '', jour: 0, rpe: null, forme: null, duree: null };
+
+function $(id) { return document.getElementById(id); }
+function montrer(vue) {
+  ['vue-chargement', 'vue-erreur', 'vue-qui', 'vue-saisie', 'vue-merci'].forEach(function (v) { $(v).hidden = v !== vue; });
+  window.scrollTo(0, 0);
+}
+function memo(cle, val) {
+  try {
+    if (val === undefined) return window.localStorage.getItem(cle);
+    if (val) window.localStorage.setItem(cle, val); else window.localStorage.removeItem(cle);
+  } catch (e) { return null; }
+  return null;
+}
+function formeTxt(v, max) {
+  var r = v / max;
+  return r <= 0.2 ? 'Épuisé' : r <= 0.4 ? 'Fatigué' : r <= 0.6 ? 'Moyen' : r <= 0.8 ? 'En forme' : 'Au top';
+}
+function messageErreur(e) {
+  return String(e && e.message ? e.message : e).replace(/^(Error|Exception):\s*/, '');
+}
+function afficherErreur(id, e) { var el = $(id); el.textContent = messageErreur(e); el.hidden = false; }
+
+function init() {
+  if (!CTX || CTX.erreur) { $('msg-erreur').textContent = (CTX && CTX.erreur) || 'Lien invalide.'; montrer('vue-erreur'); return; }
+  construirePaves();
+  brancher();
+  if (CTX.mode === 'perso') {
+    etat.id = CTX.athlete.id;
+    etat.prenom = CTX.athlete.prenom;
+    ouvrirSaisie(false);
+    return;
+  }
+  $('sous').textContent = CTX.prog.nom;
+  if (!CTX.athletes.length) {
+    $('msg-erreur').textContent = 'Aucun athlète inscrit dans cette programmation pour l\'instant. Préviens ton coach.';
+    montrer('vue-erreur');
+    return;
+  }
+  CTX.athletes.forEach(function (a) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = a.label;
+    b.onclick = function () { choisir(a); };
+    $('noms').appendChild(b);
+  });
+  var connu = memo('indar_' + CTX.cle);
+  var a = connu ? CTX.athletes.filter(function (x) { return x.id === connu; })[0] : null;
+  if (a) choisir(a); else montrer('vue-qui');
+}
+
+function choisir(a) {
+  etat.id = a.id;
+  etat.prenom = a.label;
+  memo('indar_' + CTX.cle, a.id);
+  ouvrirSaisie(true);
+}
+
+function ouvrirSaisie(groupe) {
+  $('bonjour').textContent = 'Salut ' + etat.prenom + ' !';
+  $('changer').hidden = !groupe;
+  montrer('vue-saisie');
+}
+
+function construirePaves() {
+  var i;
+  for (i = 0; i <= 10; i++) $('rpe').appendChild(bouton(String(i), i, 'rpe'));
+  var max = CTX.formeMax || 10;
+  if (max % 5 !== 0) $('forme').className = 'pave';
+  for (i = 1; i <= max; i++) $('forme').appendChild(bouton(String(i), i, 'forme'));
+  (CTX.durees || [45, 60, 75, 90]).forEach(function (d) { $('duree').appendChild(bouton(d + ' min', d, 'duree')); });
+  $('duree').appendChild(bouton('Autre', 'autre', 'duree'));
+}
+
+function bouton(txt, val, champ) {
+  var b = document.createElement('button');
+  b.type = 'button';
+  b.textContent = txt;
+  b.onclick = function () { selection(champ, val, b); };
+  return b;
+}
+
+function selection(champ, val, b) {
+  Array.prototype.forEach.call(b.parentNode.children, function (x) { x.classList.toggle('on', x === b); });
+  if (champ === 'rpe') { etat.rpe = val; $('rpe-txt').textContent = val + ' · ' + RPE_TXT[val]; }
+  if (champ === 'forme') { etat.forme = val; $('forme-txt').textContent = val + ' · ' + formeTxt(val, CTX.formeMax || 10); }
+  if (champ === 'duree') {
+    var autre = val === 'autre';
+    $('duree-autre').hidden = !autre;
+    etat.duree = autre ? (Number($('duree-autre').value) || null) : val;
+    if (autre) $('duree-autre').focus();
+  }
+  verifier();
+}
+
+function verifier() {
+  $('envoyer').disabled = !(etat.rpe !== null && etat.forme !== null && etat.duree >= 5 && etat.duree <= 600);
+}
+
+function brancher() {
+  $('duree-autre').addEventListener('input', function () { etat.duree = Math.round(Number(this.value)) || null; verifier(); });
+  $('jour').addEventListener('click', function (e) {
+    var b = e.target.closest('button');
+    if (!b) return;
+    Array.prototype.forEach.call(this.children, function (x) { x.classList.toggle('on', x === b); });
+    etat.jour = Number(b.getAttribute('data-v'));
+  });
+  $('pr-on').addEventListener('change', function () { $('pr').hidden = !this.checked; });
+  $('changer').addEventListener('click', function () { memo('indar_' + CTX.cle, ''); etat.id = null; montrer('vue-qui'); });
+  $('envoyer').addEventListener('click', envoyer);
+  $('code-ok').addEventListener('click', voirAvecCode);
+  $('code').addEventListener('keydown', function (e) { if (e.key === 'Enter') voirAvecCode(); });
+  $('nouvelle').addEventListener('click', function () { reinitialiser(); ouvrirSaisie(CTX.mode === 'groupe'); });
+}
+
+function envoyer() {
+  var btn = $('envoyer');
+  btn.disabled = true;
+  btn.textContent = 'Envoi…';
+  $('err-saisie').hidden = true;
+  var pr = $('pr-on').checked;
+  api({ action: 'enregistrer', s: {
+    mode: CTX.mode, cle: CTX.cle, id: etat.id, jour: etat.jour,
+    rpe: etat.rpe, forme: etat.forme, duree: etat.duree,
+    prMouv: pr ? $('pr-mouv').value : '', prPerf: pr ? $('pr-perf').value : ''
+  } }).then(function (r) { btn.textContent = 'Envoyer'; merci(r); },
+    function (e) { btn.textContent = 'Envoyer'; btn.disabled = false; afficherErreur('err-saisie', e); });
+}
+
+function merci(r) {
+  $('merci-titre').textContent = 'Merci ' + r.prenom + ' !';
+  $('merci-ua').textContent = r.charge.toLocaleString('fr-FR') + ' UA';
+  $('merci-detail').textContent = 'RPE ' + etat.rpe + ' × ' + etat.duree + ' min · tes 7 derniers jours : ' + r.ua7j.toLocaleString('fr-FR') + ' UA';
+  $('bloc-code').hidden = !r.codeRequis;
+  $('err-code').hidden = true;
+  $('bloc-courbes').hidden = true;
+  if (r.courbes) dessinerCourbes(r.courbes);
+  montrer('vue-merci');
+}
+
+function voirAvecCode() {
+  var code = $('code').value.trim();
+  $('err-code').hidden = true;
+  if (!/^\d{4}$/.test(code)) { afficherErreur('err-code', 'Le code fait 4 chiffres.'); return; }
+  var b = $('code-ok');
+  b.disabled = true;
+  api({ action: 'courbes', cle: CTX.cle, id: etat.id, code: code })
+    .then(function (c) { b.disabled = false; $('bloc-code').hidden = true; dessinerCourbes(c); },
+      function (e) { b.disabled = false; afficherErreur('err-code', e); });
+}
+
+function dessinerCourbes(c) {
+  var bloc = $('bloc-courbes');
+  var points = c.iC.filter(g_estVal).length;
+  var html = '<h2>Tes courbes</h2>';
+  if (points < 2) {
+    html += '<p class="note">Tes courbes se construisent : il faut quelques semaines de saisies pour connaître ton habitude (' +
+      c.hab + ' semaine' + (c.hab > 1 ? 's' : '') + ' sur ' + c.semHab + ' pour l\'instant).</p>';
+  } else {
+    html += svgCiseaux(c.colonnes, c.iC, c.iF, null) + legendeCiseaux();
+    html += '<p class="note">100 = ton habitude, c\'est-à-dire la moyenne de tes ' + c.semHab + ' semaines précédentes. ' +
+      'La dernière colonne couvre tes 7 derniers jours.' + (c.hab < c.semHab ? ' Ton habitude se précise encore.' : '') + '</p>';
+  }
+  bloc.innerHTML = html;
+  bloc.hidden = false;
+}
+
+function reinitialiser() {
+  etat.rpe = null; etat.forme = null; etat.duree = null; etat.jour = 0;
+  ['rpe', 'forme', 'duree'].forEach(function (id) {
+    Array.prototype.forEach.call($(id).children, function (x) { x.classList.remove('on'); });
+  });
+  Array.prototype.forEach.call($('jour').children, function (x, i) { x.classList.toggle('on', i === 0); });
+  $('rpe-txt').textContent = '';
+  $('forme-txt').textContent = '';
+  $('duree-autre').value = '';
+  $('duree-autre').hidden = true;
+  $('pr-on').checked = false;
+  $('pr').hidden = true;
+  $('pr-mouv').value = '';
+  $('pr-perf').value = '';
+  $('code').value = '';
+  verifier();
+}
+
+function demarrer() {
+  var q = new URLSearchParams(window.location.search);
+  var a = q.get('a'), g = q.get('g');
+  if (!a && !g) { CTX = { erreur: 'Lien incomplet : utilise le lien reçu par mail.' }; init(); return; }
+  api({ action: 'contexte', mode: a ? 'perso' : 'groupe', cle: a || g })
+    .then(function (c) { CTX = c; init(); },
+      function (e) {
+        $('msg-erreur').innerHTML = '';
+        $('msg-erreur').textContent = messageErreur(e) + ' ';
+        var b = document.createElement('button');
+        b.type = 'button'; b.className = 'lien'; b.textContent = 'Réessayer';
+        b.onclick = function () { montrer('vue-chargement'); demarrer(); };
+        $('msg-erreur').appendChild(b);
+        montrer('vue-erreur');
+      });
+}
+demarrer();
+</script>
+</body>
+</html>
