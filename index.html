@@ -6,6 +6,8 @@
 <meta name="robots" content="noindex, nofollow">
 <meta name="apple-mobile-web-app-title" content="INDAR">
 <meta name="theme-color" content="#141413">
+<link rel="preconnect" href="https://script.google.com" crossorigin>
+<link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
 <title>INDAR · Ma séance</title>
 <style>
   :root { --txt: #1c1c1a; --mut: #6b6a64; --bord: #dcdad2; --doux: #f4f3ee; --acc: #141413; --err: #b3261e; }
@@ -435,12 +437,32 @@ function reinitialiser() {
   verifier();
 }
 
+/* Contexte (prénom, durées…) gardé sur le téléphone : dès la 2e ouverture, la page s'affiche sans attendre le réseau. */
+function ctxMemorise(cle, mode) {
+  try {
+    var c = JSON.parse(memo(cle) || 'null');
+    return c && c.mode === mode && !c.erreur ? c : null;
+  } catch (e) { return null; }
+}
+
 function demarrer() {
   var q = new URLSearchParams(window.location.search);
   var a = q.get('a'), g = q.get('g');
   if (!a && !g) { CTX = { erreur: 'Lien incomplet : utilise le lien reçu par mail.' }; init(); return; }
-  api({ action: 'contexte', mode: a ? 'perso' : 'groupe', cle: a || g })
-    .then(function (c) { CTX = c; init(); },
+  var mode = a ? 'perso' : 'groupe';
+  var cleCtx = 'indar_ctx_' + (a ? 'a_' + a : 'g_' + g);
+  var demande = api({ action: 'contexte', mode: mode, cle: a || g });
+  var connu = ctxMemorise(cleCtx, mode);
+  if (connu) {
+    CTX = connu;
+    init();
+    // Mise à jour en arrière-plan ; un lien qui n'est plus valide efface la mémoire (pas une simple coupure réseau).
+    demande.then(function (c) { memo(cleCtx, JSON.stringify(c)); },
+      function (e) { if (!/connexion|indisponible/i.test(messageErreur(e))) memo(cleCtx, ''); });
+    return;
+  }
+  demande
+    .then(function (c) { memo(cleCtx, JSON.stringify(c)); CTX = c; init(); },
       function (e) {
         $('msg-erreur').innerHTML = '';
         $('msg-erreur').textContent = messageErreur(e) + ' ';
