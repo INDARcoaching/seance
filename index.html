@@ -44,6 +44,11 @@
   .note { font-size: 13px; color: var(--mut); line-height: 1.5; }
   .legende { display: flex; gap: 18px; font-size: 13px; color: var(--mut); margin-top: 4px; flex-wrap: wrap; }
   .legende span { display: inline-flex; align-items: center; gap: 6px; }
+  #periodes { margin: 2px 0 12px; }
+  #periodes button { min-height: 40px; font-size: 15px; }
+  .detail { font-size: 15px; line-height: 1.45; margin: 6px 0 4px; }
+  .detail .quand { font-size: 13px; color: var(--mut); }
+  .vide { background: var(--doux); border-radius: 10px; padding: 12px 14px; font-size: 14px; color: var(--mut); line-height: 1.45; margin: 0 0 6px; }
   [hidden] { display: none !important; }
   /* Logo INDAR Capacity en filigrane, par-dessus la page sans bloquer les touches. */
   body::after { content: ''; position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 10; pointer-events: none;
@@ -114,7 +119,7 @@
 </main>
 
 <script>
-/* Graphiques SVG partagés : ciseaux, barres de charge, courbe de forme. */
+/* Graphiques SVG partagés : ciseaux, barres de charge, courbe de forme, graphiques par période. */
 var COUL_CHARGE = '#2a78d6';
 var COUL_FORME = '#eb6834';
 var COUL_AXE = '#5f5e58';
@@ -240,6 +245,87 @@ function legendeCiseaux() {
     '<span><svg width="24" height="10" aria-hidden="true"><line x1="0" y1="5" x2="24" y2="5" stroke="' + COUL_CHARGE + '" stroke-width="2.5"/></svg>Charge</span>' +
     '<span><svg width="24" height="10" aria-hidden="true"><line x1="0" y1="5" x2="24" y2="5" stroke="' + COUL_FORME + '" stroke-width="2.5" stroke-dasharray="5 3"/></svg>Forme</span>' +
     '</div>';
+}
+/* Les 3 graphiques (semaine, mois, année) : mêmes ciseaux que l'habitude, mais 100 = la moyenne
+   sur la période affichée. p = { etiquettes, longs, charge, forme, seances, iC, iF, points }. */
+var G_PERIODES = [
+  { cle: 'semaine', nom: 'Semaine' },
+  { cle: 'mois', nom: 'Mois' },
+  { cle: 'annee', nom: 'Année' }
+];
+
+/** Comme g_trace, mais relie les points par-dessus les colonnes vides (jours de repos). */
+function g_relie(serie, X, Y, coul, tirets, carre, unite) {
+  var idx = [], v = [];
+  serie.forEach(function (x, i) { if (g_estVal(x)) { idx.push(i); v.push(x); } });
+  return g_trace(v, function (k) { return X(idx[k]); }, Y, coul, tirets, carre, unite);
+}
+
+/** Ciseaux d'une période ; sel = colonne mise en avant (bande grise), détaillée sous le graphique. */
+function svgCroisement(p, sel) {
+  var W = 340, H = 205, g = 34, d = 8, h = 12, b = 178;
+  var vals = p.iC.concat(p.iF).filter(g_estVal);
+  if (!vals.length) vals = [100];
+  var mn = Math.min(60, Math.floor((Math.min.apply(null, vals) - 5) / 20) * 20);
+  var mx = Math.max(140, Math.ceil((Math.max.apply(null, vals) + 5) / 20) * 20);
+  var n = p.etiquettes.length, pas = (W - g - d) / n;
+  var X = function (i) { return g + pas * (i + 0.5); };
+  var Y = function (v) { return b - (v - mn) * (b - h) / (mx - mn); };
+  var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" role="img" aria-label="Charge et forme en pourcentage de la moyenne sur la période">';
+  if (sel >= 0 && sel < n) {
+    s += '<rect x="' + (g + pas * sel + 1).toFixed(1) + '" y="' + (h - 6) + '" width="' + (pas - 2).toFixed(1) + '" height="' + (b - h + 26) + '" rx="6" fill="#efeee8"/>';
+  }
+  var pasT = (mx - mn) > 160 ? 40 : 20, ticks = [];
+  for (var t0 = 100; t0 >= mn; t0 -= pasT) ticks.unshift(t0);
+  for (var t1 = 100 + pasT; t1 <= mx; t1 += pasT) ticks.push(t1);
+  ticks.forEach(function (t) {
+    var y = Y(t).toFixed(1);
+    s += '<line x1="' + g + '" x2="' + (W - d) + '" y1="' + y + '" y2="' + y + '" stroke="' + (t === 100 ? '#9a988f' : COUL_GRILLE) + '" stroke-width="' + (t === 100 ? 1.3 : 1) + '"/>';
+    s += '<text x="' + (g - 5) + '" y="' + (Y(t) + 3.5).toFixed(1) + '" text-anchor="end" font-size="10" fill="' + COUL_AXE + '">' + t + '</text>';
+  });
+  s += g_axeX(p.etiquettes, X, b + 16);
+  s += g_relie(p.iC, X, Y, COUL_CHARGE, false, false, ' %') + g_relie(p.iF, X, Y, COUL_FORME, true, true, ' %');
+  for (var i = 0; i < n; i++) {
+    var tx = textePeriode(p, i, 10);
+    s += '<rect data-i="' + i + '" x="' + (g + pas * i).toFixed(1) + '" y="0" width="' + pas.toFixed(1) + '" height="' + H + '" fill="transparent" style="cursor:pointer">' +
+      '<title>' + g_esc(tx[0] + ' : ' + tx[1] + (tx[2] ? '. ' + tx[2] : '')) + '</title></rect>';
+  }
+  return s + '</svg>';
+}
+
+/** [quand, valeurs, courbe] d'une colonne, en texte simple. */
+function textePeriode(p, i, mx) {
+  var n = (p.seances && p.seances[i]) || 0;
+  if (!n) return [p.longs[i], 'Pas de séance', ''];
+  var f = g_estVal(p.forme[i]) ? String(p.forme[i]).replace('.', ',') : '–';
+  return [p.longs[i],
+    Math.round(p.charge[i] || 0).toLocaleString('fr-FR') + ' UA · ' + n + ' séance' + (n > 1 ? 's' : '') + ' · forme ' + (n > 1 ? 'moyenne ' : '') + f + '/' + (mx || 10),
+    g_estVal(p.iC[i]) ? 'Sur la courbe : charge ' + p.iC[i] + ' %, forme ' + p.iF[i] + ' %' : 'Pas encore sur la courbe : trop peu de jours'];
+}
+
+function detailPeriode(p, i, mx) {
+  var t = textePeriode(p, i, mx), v = t[1].split(' · ');
+  return '<span class="quand">' + g_esc(t[0]) + '</span><br><strong>' + g_esc(v[0]) + '</strong>' +
+    (v.length > 1 ? ' · ' + g_esc(v.slice(1).join(' · ')) : '') + (t[2] && p.points >= 2 ? '<br><span class="quand">' + g_esc(t[2]) + '</span>' : '');
+}
+
+/**
+ * Graphe d'une période dans el, avec le détail de la colonne touchée (au départ : la dernière avec séance).
+ * Moins de 2 points : pas de courbe, le message vide à la place.
+ */
+function grapheInteractif(el, p, mx, vide) {
+  var sel = p.etiquettes.length - 1;
+  for (var k = sel; k >= 0; k--) { if (p.seances[k]) { sel = k; break; } }
+  function rendre() {
+    el.innerHTML = (p.points >= 2 ? svgCroisement(p, sel) + legendeCiseaux() : '<p class="vide">' + g_esc(vide) + '</p>') +
+      '<div class="detail">' + detailPeriode(p, sel, mx) + '</div>';
+  }
+  el.onclick = function (e) {
+    var t = e.target;
+    while (t && t !== el && !(t.getAttribute && t.getAttribute('data-i') !== null)) t = t.parentNode;
+    if (t && t !== el) { sel = Number(t.getAttribute('data-i')); rendre(); }
+  };
+  rendre();
 }
 </script>
 <script>
@@ -406,8 +492,43 @@ function voirAvecCode() {
       function (e) { b.disabled = false; afficherErreur('err-code', e); });
 }
 
+var NOTES_PERIODES = {
+  semaine: 'Tes 7 derniers jours, un point par jour de séance.',
+  mois: 'Tes 5 dernières semaines, par blocs de 7 jours jusqu\'à aujourd\'hui.',
+  annee: 'Tes 12 derniers mois, le dernier est en cours.'
+};
+var VIDES_PERIODES = {
+  semaine: 'La courbe apparaît dès ta 2e séance sur les 7 derniers jours.',
+  mois: 'La courbe apparaît quand tu as des séances sur 2 semaines.',
+  annee: 'La courbe apparaît quand tu as des séances sur 2 mois.'
+};
+
+function montrerPeriode(c, k) {
+  var p = G_PERIODES[k];
+  Array.prototype.forEach.call($('periodes').children, function (x, i) {
+    x.classList.toggle('on', i === k);
+    x.setAttribute('aria-pressed', i === k ? 'true' : 'false');
+  });
+  var d = c.periodes[p.cle];
+  grapheInteractif($('graphe'), d, CTX.formeMax || 10, VIDES_PERIODES[p.cle]);
+  $('graphe-note').textContent = NOTES_PERIODES[p.cle] + (d.points >= 2 ? ' 100 = ta moyenne sur la période. Touche le graphique pour voir le détail.' : '');
+}
+
 function dessinerCourbes(c) {
   var bloc = $('bloc-courbes');
+  if (c.periodes) {
+    bloc.innerHTML = '<h2>Tes graphiques</h2><div class="chips" id="periodes"></div><div id="graphe"></div><p class="note" id="graphe-note"></p>';
+    G_PERIODES.forEach(function (p, k) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = p.nom;
+      b.onclick = function () { montrerPeriode(c, k); };
+      $('periodes').appendChild(b);
+    });
+    montrerPeriode(c, 0);
+    bloc.hidden = false;
+    return;
+  }
   var points = c.iC.filter(g_estVal).length;
   var html = '<h2>Tes courbes</h2>';
   if (points < 2) {
