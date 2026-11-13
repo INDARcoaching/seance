@@ -49,6 +49,9 @@
   .detail { font-size: 15px; line-height: 1.45; margin: 6px 0 4px; }
   .detail .quand { font-size: 13px; color: var(--mut); }
   .vide { background: var(--doux); border-radius: 10px; padding: 12px 14px; font-size: 14px; color: var(--mut); line-height: 1.45; margin: 0 0 6px; }
+  .entete { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; }
+  .pilule { display: inline-flex; align-items: center; gap: 7px; min-height: 40px; padding: 0 14px; border: 1px solid var(--bord);
+    border-radius: 999px; background: #fff; font-size: 14px; font-weight: 700; cursor: pointer; white-space: nowrap; }
   [hidden] { display: none !important; }
   /* Logo INDAR Capacity en filigrane, par-dessus la page sans bloquer les touches. */
   body::after { content: ''; position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 10; pointer-events: none;
@@ -57,8 +60,13 @@
 </head>
 <body>
 <main>
-  <div class="marque">INDAR</div>
-  <h1 id="titre">Ma séance</h1>
+  <div class="entete">
+    <div>
+      <div class="marque">INDAR</div>
+      <h1 id="titre">Ma séance</h1>
+    </div>
+    <button type="button" class="pilule" id="voir-courbes" hidden><svg width="22" height="14" viewBox="0 0 22 14" aria-hidden="true"><polyline points="2,11 8,8 13,9 20,3" fill="none" stroke="#2a78d6" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><polyline points="2,4 8,6 13,5 20,11" fill="none" stroke="#eb6834" stroke-width="2.2" stroke-dasharray="3 2.5" stroke-linecap="round"/></svg>Mes courbes</button>
+  </div>
   <p class="sous" id="sous"></p>
 
   <section id="vue-chargement"><p class="note">Chargement…</p></section>
@@ -101,11 +109,13 @@
   </section>
 
   <section id="vue-merci" hidden>
-    <h2 id="merci-titre"></h2>
-    <div class="carte">
-      <div class="note">Charge de cette séance</div>
-      <div class="chiffre" id="merci-ua"></div>
-      <div class="note" id="merci-detail"></div>
+    <div id="bloc-seance">
+      <h2 id="merci-titre"></h2>
+      <div class="carte">
+        <div class="note">Charge de cette séance</div>
+        <div class="chiffre" id="merci-ua"></div>
+        <div class="note" id="merci-detail"></div>
+      </div>
     </div>
     <div id="bloc-code" hidden>
       <p class="note">Pour voir tes courbes, entre ton code à 4 chiffres.</p>
@@ -113,6 +123,8 @@
       <button type="button" class="principal" id="code-ok">Voir mes courbes</button>
       <p class="erreur" id="err-code" hidden></p>
     </div>
+    <p class="note" id="courbes-attente" hidden>Chargement de tes courbes…</p>
+    <p class="erreur" id="err-courbes" hidden></p>
     <div id="bloc-courbes" hidden></div>
     <button type="button" class="secondaire" id="nouvelle">Saisir une autre séance</button>
   </section>
@@ -341,11 +353,12 @@ function api(charge) {
 }
 var RPE_TXT = ['Repos', 'Très, très facile', 'Facile', 'Modéré', 'Un peu difficile', 'Difficile', 'Difficile +',
   'Très difficile', 'Très difficile +', 'Quasi maximal', 'Maximal'];
-var etat = { id: null, prenom: '', jour: 0, rpe: null, forme: null, duree: null };
+var etat = { id: null, prenom: '', jour: 0, rpe: null, forme: null, duree: null, courbesSeules: false, demandeCourbes: 0 };
 
 function $(id) { return document.getElementById(id); }
 function montrer(vue) {
   ['vue-chargement', 'vue-erreur', 'vue-qui', 'vue-saisie', 'vue-merci'].forEach(function (v) { $(v).hidden = v !== vue; });
+  $('voir-courbes').hidden = vue !== 'vue-saisie';
   window.scrollTo(0, 0);
 }
 function memo(cle, val) {
@@ -453,7 +466,13 @@ function brancher() {
   $('envoyer').addEventListener('click', envoyer);
   $('code-ok').addEventListener('click', voirAvecCode);
   $('code').addEventListener('keydown', function (e) { if (e.key === 'Enter') voirAvecCode(); });
-  $('nouvelle').addEventListener('click', function () { reinitialiser(); ouvrirSaisie(CTX.mode === 'groupe'); });
+  $('nouvelle').addEventListener('click', function () {
+    // Après « Mes courbes » : retour à la saisie telle qu'elle était ; après un envoi : nouvelle saisie.
+    if (etat.courbesSeules) { etat.courbesSeules = false; etat.demandeCourbes++; montrer('vue-saisie'); return; }
+    reinitialiser();
+    ouvrirSaisie(CTX.mode === 'groupe');
+  });
+  $('voir-courbes').addEventListener('click', voirCourbes);
 }
 
 function envoyer() {
@@ -470,7 +489,31 @@ function envoyer() {
     function (e) { btn.textContent = 'Envoyer'; btn.disabled = false; afficherErreur('err-saisie', e); });
 }
 
+/** Bouton « Mes courbes » : les graphiques sans saisir de séance (directs avec un lien perso, code en groupe). */
+function voirCourbes() {
+  var n = ++etat.demandeCourbes;
+  etat.courbesSeules = true;
+  $('bloc-seance').hidden = true;
+  $('bloc-courbes').hidden = true;
+  $('err-code').hidden = true;
+  $('err-courbes').hidden = true;
+  $('nouvelle').textContent = 'Retour à la saisie';
+  $('bloc-code').hidden = CTX.mode === 'perso';
+  $('courbes-attente').hidden = CTX.mode !== 'perso';
+  montrer('vue-merci');
+  if (CTX.mode !== 'perso') return;
+  api({ action: 'courbesPerso', cle: CTX.cle })
+    .then(function (c) { if (n === etat.demandeCourbes) { $('courbes-attente').hidden = true; dessinerCourbes(c); } },
+      function (e) { if (n === etat.demandeCourbes) { $('courbes-attente').hidden = true; afficherErreur('err-courbes', e); } });
+}
+
 function merci(r) {
+  etat.courbesSeules = false;
+  etat.demandeCourbes++;
+  $('bloc-seance').hidden = false;
+  $('courbes-attente').hidden = true;
+  $('err-courbes').hidden = true;
+  $('nouvelle').textContent = 'Saisir une autre séance';
   $('merci-titre').textContent = 'Merci ' + r.prenom + ' !';
   $('merci-ua').textContent = r.charge.toLocaleString('fr-FR') + ' UA';
   $('merci-detail').textContent = 'RPE ' + etat.rpe + ' × ' + etat.duree + ' min · tes 7 derniers jours : ' + r.ua7j.toLocaleString('fr-FR') + ' UA';
